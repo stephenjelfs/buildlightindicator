@@ -26,8 +26,7 @@ func SwitchLightToBlue() {
 }
 
 func switchLightTo(ledColor byte) error {
-	//_, err := connectToLightDevice(4037, 45184)
-	device, err := connectToLightDevice(1386, 830)
+	device, err := connectToLightDevice(4037, 45184)
 
 	if err != nil {
 		log.Println(err)
@@ -56,6 +55,7 @@ func connectToLightDevice(vendorID uint16, productID uint16) (*hid.Device, error
 	device, err := devInfo[0].Open()
 
 	if err != nil {
+		log.Println(err, devInfo[0].Path)
 		return nil, errors.New(fmt.Sprint("Light device found, but failed to open: ", devInfo[0].Product, ", ", devInfo[0].Manufacturer))
 	}
 
