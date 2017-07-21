@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"fmt"
+	"time"
 )
 
 const (
@@ -25,6 +26,10 @@ func SwitchLightToBlue() {
 	switchLightTo(LED_BLUE)
 }
 
+func SwitchLightToOff() {
+	switchLightTo(0)
+}
+
 func switchLightTo(ledColor byte) error {
 	device, err := connectToLightDevice(4037, 45184)
 
@@ -38,9 +43,15 @@ func switchLightTo(ledColor byte) error {
 
 		return err
 	}
+
 	defer device.Close()
 
-	fmt.Println(device)
+	setLedsPowerFullOff(device);
+
+	if ledColor != 0 {
+		breathEffect(device, LED_BLUE);
+		setLedColorFullOn(device, ledColor);
+	}
 
 	return nil
 }
@@ -62,3 +73,60 @@ func connectToLightDevice(vendorID uint16, productID uint16) (*hid.Device, error
 	return device, nil
 }
 
+func breathEffect(device *hid.Device, ledColor byte) {
+	turnLedOn(device, ledColor);
+
+	// fade in
+	for i := 0; i <= 30; i++ {
+		setLedsPower(device, ledColor, byte(i * 3))
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	// fade out
+	for i := 30; i >= 0; i-- {
+		setLedsPower(device, ledColor, byte(i * 3))
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	turnLedOff(device, ledColor)
+}
+
+func setLedColorFullOn(device *hid.Device, ledColor byte) {
+	turnLedOn(device, ledColor)
+	setLedsPower(device, ledColor, 100)
+}
+
+func setLedsPowerFullOff(device *hid.Device) {
+	setLedsPower(device, LED_GREEN,0)
+	setLedsPower(device, LED_RED,0)
+	setLedsPower(device, LED_BLUE,0)
+
+	turnLedOff(device, LED_GREEN)
+	turnLedOff(device, LED_RED)
+	turnLedOff(device, LED_BLUE)
+}
+
+func setLedsPower(device *hid.Device, ledColor byte, power byte) {
+	var ordinal byte;
+
+	switch(ledColor) {
+		case LED_GREEN:
+			ordinal = 0
+		case LED_RED:
+			ordinal = 1
+		case LED_BLUE:
+			ordinal = 2
+	}
+
+	device.Write([]byte {101, 34, ordinal, power, 0, 0, 0, 0})
+}
+
+func turnLedOn(device *hid.Device, ledColor byte) {
+	device.Write([]byte {101, 20, ledColor, 0, 0, 0, 0, 0}) // turn off flash
+	device.Write([]byte {101, 12, ledColor, 0, 0, 0, 0, 0}) // turn on
+}
+
+func turnLedOff(device *hid.Device, ledColor byte) {
+	device.Write([]byte {101, 20, 0, ledColor, 0, 0, 0, 0, 0}) // turn off flash
+	device.Write([]byte {101, 12, 0, 0, 0, 0, 0, 0}) // turn off
+}
