@@ -8,61 +8,53 @@ import (
 	"time"
 )
 
+type Status struct {
+	Color string
+	Error error
+}
+
+type request struct {
+	command HidCommand
+	done    chan Status
+}
+
 type Controller struct {
-	send chan HidCommand
-	shutdown chan bool
+	queue chan request
 }
 
-func (hidLight Controller) SwitchToRed() {
-	hidLight.send <- red()
+func (hidLight Controller) SwitchToRed(done chan Status) {
+	hidLight.queue <- request{red(), done}
 }
 
-func (hidLight Controller) SwitchToGreen() {
-	hidLight.send <- green()
+func (hidLight Controller) SwitchToGreen(done chan Status) {
+	hidLight.queue <- request{green(), done}
 }
 
-func (hidLight Controller) SwitchToBlue() {
-	hidLight.send <- blue()
+func (hidLight Controller) SwitchToBlue(done chan Status) {
+	hidLight.queue <- request{blue(), done}
 }
 
-func (hidLight Controller) SwitchOff() {
-	hidLight.send <- off()
-}
-
-func (hidLight Controller) Shutdown() {
-	hidLight.shutdown <- true
+func (hidLight Controller) SwitchOff(done chan Status) {
+	hidLight.queue <- request{off(), done}
 }
 
 func New() Controller {
-	send := make(chan HidCommand)
-	shutdown := make(chan bool)
+	queue := make(chan request)
 
 	go func() {
-		defer func() {
-			log.Println("Light successfully shutdown.")
-		}()
-
 		for {
-			select {
-				case command := <- send:
-					handleCommand(command)
-				case <- shutdown:
-					handleCommand(off())
-					return
-			}
+			handleRequest(<- queue)
 		}
 	}()
 
-	return Controller{send, shutdown}
+	return Controller{queue}
 }
 
-func handleCommand(command HidCommand) {
-	log.Println("Switching light to:", command.name())
-	err := runCommandOnDevice(command)
-	if err != nil {
-		log.Println(err)
-	}
-	log.Println("Finished switching light to:", command.name())
+func handleRequest(request request) {
+	log.Println("Switching light to:", request.command.name())
+	err := runCommandOnDevice(request.command)
+	log.Println("Finished switching light to:", request.command.name())
+	request.done <- Status{request.command.name(), err }
 }
 
 type HidCommand interface {
@@ -143,10 +135,6 @@ func runCommandOnDevice(command HidCommand) error {
 	device, err := connectToLightDevice(4037, 45184)
 
 	if err != nil {
-		//log.Println("Known USB devices:")
-		//for _, devInfo := range(hid.Enumerate(0, 0)) {
-		//	log.Println("VendorID:", devInfo.VendorID, "ProductID:", devInfo.ProductID, "Product", devInfo.Product)
-		//}
 		return err
 	}
 
