@@ -53,6 +53,9 @@ func New() Controller {
 func handleRequest(request request) {
 	log.Println("Switching light to:", request.command.name())
 	err := runCommandOnDevice(request.command)
+	if err != nil {
+		log.Println(err)
+	}
 	log.Println("Finished switching light to:", request.command.name())
 	request.done <- Status{request.command.name(), err }
 }
