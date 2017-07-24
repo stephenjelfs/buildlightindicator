@@ -8,56 +8,41 @@ import (
 	"time"
 )
 
+const (
+	RED = "red"
+	GREEN = "green"
+	BLUE = "blue"
+	OFF = "off"
+)
+
+
 type Status struct {
 	Color string
 	Error error
 }
 
-type request struct {
-	command HidCommand
-	done    chan Status
-}
+func SwitchTo(color string) error {
+	command, err := getHidCommand(color)
 
-type Controller struct {
-	queue chan request
-}
-
-func (hidLight Controller) SwitchToRed(done chan Status) {
-	hidLight.queue <- request{red(), done}
-}
-
-func (hidLight Controller) SwitchToGreen(done chan Status) {
-	hidLight.queue <- request{green(), done}
-}
-
-func (hidLight Controller) SwitchToBlue(done chan Status) {
-	hidLight.queue <- request{blue(), done}
-}
-
-func (hidLight Controller) SwitchOff(done chan Status) {
-	hidLight.queue <- request{off(), done}
-}
-
-func New() Controller {
-	queue := make(chan request)
-
-	go func() {
-		for {
-			handleRequest(<- queue)
-		}
-	}()
-
-	return Controller{queue}
-}
-
-func handleRequest(request request) {
-	log.Println("Switching light to:", request.command.name())
-	err := runCommandOnDevice(request.command)
 	if err != nil {
-		log.Println(err)
+		return err
 	}
-	log.Println("Finished switching light to:", request.command.name())
-	request.done <- Status{request.command.name(), err }
+
+	return runCommandOnDevice(command)
+}
+
+func getHidCommand(color string) (HidCommand, error) {
+	switch color {
+		case RED:
+			return red(), nil
+		case GREEN:
+			return green(), nil
+		case BLUE:
+			return blue(), nil
+		case OFF:
+			return off(), nil
+		default: return nil, errors.New("Unknown Color: " + color)
+	}
 }
 
 type HidCommand interface {

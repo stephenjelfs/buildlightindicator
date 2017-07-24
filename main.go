@@ -6,58 +6,83 @@ import (
 	"net/http"
 	"encoding/json"
 	"fmt"
+	"time"
 )
 
-type JsonStatus struct {
-	Color    string `json:"color"`
-	ErrorMsg string `json:"errorMsg"`
+type CurrentStatus struct {
+	LastSuccess   		string `json:"lastSuccess"`
+	LastCompleted 		string `json:"lastCompleted"`
+	LastCompletedError	string `json:"lastCompletedError"`
+	Running       		string `json:"running"`
+	Pending       		string `json:"pending"`
+}
+
+type request struct{
+	updateOrEmpty	string
+	done 			chan CurrentStatus
 }
 
 func main() {
-	hidLight := hidlight.New()
+	requests := make(chan request)
 
-	reportedStatus := make(chan hidlight.Status)
-	desiredColor := make(chan string)
-
-	go syncHidLight(&hidLight, reportedStatus, desiredColor)
-	startServer(8080, reportedStatus, desiredColor)
+	go syncHidlight(requests)
+	startServer(8080, requests)
 }
 
-func syncHidLight(hidLight *hidlight.Controller, reportedStatus chan hidlight.Status, desiredColor chan string) {
-	lastDesiredColor := "blue"
-	updateLight := true
+func syncHidlight(requests chan request) {
+	updateComplete := make(chan hidlight.Status)
 
-	go func() {
-		for {
-			lastDesiredColor = <- desiredColor
-			updateLight = true
-		}
-	}()
+	pending := ""
+	running := ""
+	lastSuccess := ""
+	lastCompleted := ""
+	lastCompletedError := ""
 
 	for {
-		if updateLight {
-			updateLight = false
+		select {
+			case request := <- requests:
+				if request.updateOrEmpty != "" {
+					if running == "" {
+						updateHidlight(request.updateOrEmpty, updateComplete)
+						running = request.updateOrEmpty
+					} else {
+						pending = request.updateOrEmpty
+					}
+				}
+				request.done <- CurrentStatus {lastSuccess, lastCompleted, lastCompletedError, running, pending}
 
-			switch lastDesiredColor {
-			case "red":
-				hidLight.SwitchToRed(reportedStatus)
-			case "blue":
-				hidLight.SwitchToBlue(reportedStatus)
-			case "green":
-				hidLight.SwitchToGreen(reportedStatus)
-			}
+			case status := <- updateComplete:
+				if pending != "" {
+					updateHidlight(pending, updateComplete)
+					running = pending
+					pending = ""
+				} else {
+					running = ""
+				}
+
+				if status.Error != nil {
+					lastCompletedError = status.Error.Error()
+				} else {
+					lastSuccess = status.Color
+				}
+				lastCompleted = status.Color
 		}
 	}
 }
 
-func startServer(port int, reportedStatus chan hidlight.Status, desiredColor chan string) {
-	lastReportedStatus := hidlight.Status{}
-
+func updateHidlight(color string, complete chan hidlight.Status) {
 	go func() {
-		for {
-			lastReportedStatus = <- reportedStatus
+		log.Println("Switching light to: " + color)
+		err := hidlight.SwitchTo(color)
+		if err != nil {
+			log.Println(err)
 		}
+		log.Println("Finished switching light to: " + color)
+		complete <- hidlight.Status{color, err}
 	}()
+}
+
+func startServer(port int, requests chan request) {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w,"Build light indicator running.")
@@ -66,17 +91,16 @@ func startServer(port int, reportedStatus chan hidlight.Status, desiredColor cha
 	http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		errorMsg := ""
+		done := make(chan CurrentStatus)
+		updateOrEmpty := ""
 
-		if (lastReportedStatus.Error != nil) {
-			errorMsg = lastReportedStatus.Error.Error()
+		if r.Method == http.MethodPost {
+			updateOrEmpty = r.URL.Query().Get("color")
+
 		}
 
-		json.NewEncoder(w).Encode(JsonStatus{lastReportedStatus.Color,errorMsg})
-	})
-
-	http.HandleFunc("/update", func(w http.ResponseWriter, r *http.Request) {
-		desiredColor <- r.URL.Query().Get("color")
+		requests <- request{updateOrEmpty, done}
+		json.NewEncoder(w).Encode(<- done)
 	})
 
 	log.Println("Starting server on port: ", port)
