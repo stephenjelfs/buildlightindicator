@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"encoding/json"
 	"fmt"
-	"time"
 )
 
 type CurrentStatus struct {
