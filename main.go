@@ -9,7 +9,7 @@ import (
 )
 
 type JsonStatus struct {
-	Color    string `json:"string"`
+	Color    string `json:"color"`
 	ErrorMsg string `json:"errorMsg"`
 }
 
