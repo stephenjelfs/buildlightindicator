@@ -72,15 +72,15 @@ type HidLed struct {
 }
 
 func red() HidLed {
-	return HidLed{"red",1, 0}
+	return HidLed{"red",2, 1}
 }
 
 func green() HidLed {
-	return HidLed{"green",4, 2}
+	return HidLed{"green",1, 0}
 }
 
 func blue() HidLed {
-	return HidLed{"blue", 2, 1}
+	return HidLed{"blue", 4, 2}
 }
 
 func (led HidLed) name() string {
