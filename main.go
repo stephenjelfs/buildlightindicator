@@ -62,6 +62,7 @@ func syncHidlight(requests chan request) {
 				if status.Error != nil {
 					lastCompletedError = status.Error.Error()
 				} else {
+					lastCompletedError = ""
 					lastSuccess = status.Color
 				}
 				lastCompleted = status.Color
