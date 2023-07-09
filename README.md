@@ -40,4 +40,5 @@ sudo groupadd -f input
 sudo gpasswd -a YOURUSERNAME input
 ```
 Reboot your machine for the rules to take effect.
+
 Your nodejs / nodered has now FULL ACCESS !! to you usb devides. Feel free to adjust the permissions to fit your needs.
